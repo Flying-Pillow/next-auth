@@ -14,16 +14,22 @@ export async function getAuthorizationUrl(
   options: InternalOptions<"oauth" | "oidc">
 ) {
   const { logger, provider } = options
+  const issuer = new URL(provider.issuer!)
 
   let url = provider.authorization?.url
   let as: o.AuthorizationServer | undefined
 
+  // fucking microshit and their stupid non-compliance.
+  // why can't they be fucking normal like the other children
+  // they can suck my micro fucking cock
+  if (url.host === "login.microsoftonline.com") {
+    issuer.pathname = "{tenantid}/v2.0";
+  }
   // Falls back to authjs.dev if the user only passed params
   if (!url || url.host === "authjs.dev") {
     // If url is undefined, we assume that issuer is always defined
     // We check this in assert.ts
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const issuer = new URL(provider.issuer!)
     const discoveryResponse = await o.discoveryRequest(issuer)
     const as = await o.processDiscoveryResponse(issuer, discoveryResponse)
 

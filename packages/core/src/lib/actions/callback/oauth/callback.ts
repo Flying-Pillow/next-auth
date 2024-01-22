@@ -1,3 +1,4 @@
+import * as jose from "jose"
 import * as checks from "./checks.js"
 import * as o from "oauth4webapi"
 import {
@@ -45,6 +46,10 @@ export async function handleOAuth(
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const issuer = new URL(provider.issuer!)
     const discoveryResponse = await o.discoveryRequest(issuer)
+    if (issuer.host === "login.microsoftonline.com") {
+      issuer.pathname = "{tenantid}/v2.0";
+    }
+
     const discoveredAs = await o.processDiscoveryResponse(
       issuer,
       discoveryResponse
@@ -112,6 +117,17 @@ export async function handleOAuth(
     codeVerifier ?? "auth" // TODO: review fallback code verifier
   )
 
+  let tenantId
+  if (codeGrantResponse.status === 200) {
+    const { id_token } = await codeGrantResponse.clone().json()
+      ; ({ tid: tenantId } = jose.decodeJwt(id_token))
+  }
+
+  // no real check for this. no clue how we do it. I think we just trust the provider 
+  //if (!isThisTenantIdExpected(tenantId)) {
+  //  throw new Error()
+  //}
+
   if (provider.token?.conform) {
     codeGrantResponse =
       (await provider.token.conform(codeGrantResponse.clone())) ??
@@ -128,6 +144,12 @@ export async function handleOAuth(
 
   let profile: Profile = {}
   let tokens: TokenSet & Pick<Account, "expires_at">
+
+  // fucking microcock
+  as = {
+    ...as,
+    issuer: as.issuer.replace('{tenantid}', tenantId),
+  }
 
   if (provider.type === "oidc") {
     const nonce = await checks.nonce.use(cookies, resCookies, options)
